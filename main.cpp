@@ -1,7 +1,7 @@
+#include <array>
 #include <iostream>
 #include <filesystem>
 
-#include "basic_4dimage.h"
 #include "FL_downSample3D.h"
 #include "FL_upSample3D.h"
 #include "stackutil.h"
@@ -10,6 +10,7 @@
 struct ImageSamplingCreateInfo {
     std::string inputImagePath;
     std::string outputImagePath;
+    std::array<int, 3> size = {0, 0, 0};
     double xResolutionFactor;
     double yResolutionFactor;
     double zResolutionFactor;
@@ -36,15 +37,10 @@ public:
         m_Info = info;
     }
 
-    void resampleImage() {
-        if (m_Info.xResolutionFactor < 1 || m_Info.yResolutionFactor < 1 || m_Info.zResolutionFactor < 1) {
-            std::cerr << "Sample factor cannot be smaller than 1" << std::endl;
-            return;
-        }
-
+    bool resampleImage() {
         if (!std::filesystem::exists(m_Info.inputImagePath)) {
             std::cerr << "Input image does not exist" << std::endl;
-            return;
+            return false;
         }
 
         std::cout << "x_factor = " << m_Info.xResolutionFactor << std::endl;
@@ -59,7 +55,32 @@ public:
         int dataType;
         if (!loadImage((char *)m_Info.inputImagePath.c_str(), imgData, imgSizePtr, dataType)) {
             std::cerr << "Load image " << m_Info.inputImagePath << " error!" << std::endl;
-            return;
+            return false;
+        }
+
+        if (m_Info.size[0] != 0 && m_Info.size[1] != 0 && m_Info.size[2] != 0) {
+            if (imgSizePtr[0] >= m_Info.size[0] && imgSizePtr[1] >= m_Info.size[1] && imgSizePtr[2] >= m_Info.size[2]) {
+                m_Info.mode = ImageSamplingCreateInfo::SampleMode::DownSample;
+                m_Info.xResolutionFactor = (double)imgSizePtr[0] / m_Info.size[0];
+                m_Info.yResolutionFactor = (double)imgSizePtr[1] / m_Info.size[1];
+                m_Info.zResolutionFactor = (double)imgSizePtr[2] / m_Info.size[2];
+            }
+            else if (imgSizePtr[0] <= m_Info.size[0] && imgSizePtr[1] <= m_Info.size[1] && imgSizePtr[2] <= m_Info.size[
+                         2]) {
+                m_Info.mode = ImageSamplingCreateInfo::SampleMode::UpSample;
+                m_Info.xResolutionFactor = (double)m_Info.size[0] / imgSizePtr[0];
+                m_Info.yResolutionFactor = (double)m_Info.size[1] / imgSizePtr[1];
+                m_Info.zResolutionFactor = (double)m_Info.size[2] / imgSizePtr[2];
+            }
+            else {
+                std::cerr << "Invalid size! Cannot determine downsampling or upsampling mode!" << std::endl;
+                return false;
+            }
+        }
+
+        if (m_Info.xResolutionFactor < 1 || m_Info.yResolutionFactor < 1 || m_Info.zResolutionFactor < 1) {
+            std::cerr << "Sample factor cannot be smaller than 1" << std::endl;
+            return false;
         }
 
         int64_t channelSize = imgSizePtr[0] * imgSizePtr[1] * imgSizePtr[2];
@@ -105,6 +126,8 @@ public:
             delete []imageDataResampled;
             imageDataResampled = nullptr;
         }
+
+        return true;
     }
 
 private:
@@ -119,6 +142,7 @@ int main(int argc, char** argv) {
         options.add_options()
                 ("i,inputImagePath", "inputImagePath", cxxopts::value<std::string>()) // a bool parameter
                 ("o,outputImagePath", "outputImagePath", cxxopts::value<std::string>())
+                ("s,size", "size x y z", cxxopts::value<int>())
                 ("x,xResolutionFactor", "xResolutionFactor", cxxopts::value<double>())
                 ("y,yResolutionFactor", "yResolutionFactor", cxxopts::value<double>())
                 ("z,zResolutionFactor", "zResolutionFactor", cxxopts::value<double>())
@@ -142,47 +166,77 @@ int main(int argc, char** argv) {
     if (result.count("inputImagePath")) {
         info.inputImagePath = result["inputImagePath"].as<std::string>();
     }
-    else if (result.count("outputImagePath")) {
+    if (result.count("outputImagePath")) {
         info.outputImagePath = result["outputImagePath"].as<std::string>();
     }
-    else if (result.count("xResolutionFactor")) {
-        info.xResolutionFactor = result["xResolutionFactor"].as<double>();
+
+    if (result.count("size")) {
+        info.size[0] = result["size"].as<int>();
+        info.size[1] = result["size"].as<int>();
+        info.size[2] = result["size"].as<int>();
     }
-    else if (result.count("yResolutionFactor")) {
-        info.yResolutionFactor = result["yResolutionFactor"].as<double>();
+    else {
+        if (result.count("xResolutionFactor")) {
+            info.xResolutionFactor = result["xResolutionFactor"].as<double>();
+        }
+        if (result.count("yResolutionFactor")) {
+            info.yResolutionFactor = result["yResolutionFactor"].as<double>();
+        }
+        if (result.count("zResolutionFactor")) {
+            info.zResolutionFactor = result["zResolutionFactor"].as<double>();
+        }
+        if (result.count("mode")) {
+            if (result["mode"].as<std::string>() == "up") {
+                info.mode = ImageSamplingCreateInfo::SampleMode::UpSample;
+            }
+            else if (result["mode"].as<std::string>() == "down") {
+                info.mode = ImageSamplingCreateInfo::SampleMode::DownSample;
+            }
+            else {
+                std::cerr << "Unknown sample mode!" << std::endl;
+                return -1;
+            }
+        }
     }
-    else if (result.count("zResolutionFactor")) {
-        info.zResolutionFactor = result["zResolutionFactor"].as<double>();
-    }
-    else if (result.count("channel")) {
+
+    if (result.count("channel")) {
         info.channel = result["channel"].as<int>();
     }
-    else if (result.count("mode")) {
-        if (result["mode"].as<std::string>() == "up") {
-            info.mode = ImageSamplingCreateInfo::SampleMode::UpSample;
-        }
-        else if (result["mode"].as<std::string>() == "down") {
-            info.mode = ImageSamplingCreateInfo::SampleMode::DownSample;
-        }
-        else {
-            std::cerr << "Unknown sample mode!" << std::endl;
-            return -1;
-        }
-    }
-    else if (result.count("tag")) {
+    if (result.count("tag")) {
         info.tag = result["tag"].as<std::string>().at(0);
     }
 
-    info.inputImagePath = R"(C:\Users\KiraY\Desktop\v3draw\191815.v3draw)";
-    info.outputImagePath = R"(C:\Users\KiraY\Desktop\v3draw\191815_resampled.v3draw)";
-    info.xResolutionFactor = 2.0;
-    info.yResolutionFactor = 2.0;
-    info.zResolutionFactor = 2.0;
-    info.channel = 1;
-    info.tag = 1;
-    info.mode = ImageSamplingCreateInfo::SampleMode::DownSample;
+    std::filesystem::path rootPath("/media/seele/bb91b197-9dda-4678-959b-b4f8e0dcd527/RatingImage");
 
-    ImageSampler sampler;
-    sampler.setSamplingCreateInfo(info);
-    sampler.resampleImage();
+    int successCount = 0, failedCount = 0;
+    for (auto&dirEntry: std::filesystem::directory_iterator(rootPath)) {
+        std::cout << dirEntry.path() << std::endl;
+
+        info.inputImagePath = dirEntry.path().string();
+        info.outputImagePath =
+                dirEntry.path().parent_path().string() + "/" + dirEntry.path().stem().string() + "_resampled.v3draw";
+        info.size[0] = 256;
+        info.size[1] = 256;
+        info.size[2] = 32;
+        info.xResolutionFactor = 2.0;
+        info.yResolutionFactor = 2.0;
+        info.zResolutionFactor = 2.0;
+        info.channel = 1;
+        info.tag = 1;
+        info.mode = ImageSamplingCreateInfo::SampleMode::DownSample;
+
+        ImageSampler sampler;
+        sampler.setSamplingCreateInfo(info);
+        if (sampler.resampleImage()) {
+            std::cout << "Resample image success!" << std::endl;
+            successCount++;
+        }
+        else {
+            std::cerr << "Resample image failed!" << std::endl;
+            failedCount++;
+        }
+    }
+
+    std::cout << "Success count: " << successCount << std::endl;
+    std::cout << "Failed count: " << failedCount << std::endl;
 }

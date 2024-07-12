@@ -1,6 +1,8 @@
 #pragma once
 
 
+#include <cmath>
+
 #include "img_definition.h"
 
 // tag indicate whether pixels in the downsampled image should be the average of neighboring pixels in the original image (tag = 0)

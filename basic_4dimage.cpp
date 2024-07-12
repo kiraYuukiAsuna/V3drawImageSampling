@@ -1,6 +1,7 @@
 #include "stackutil.h"
 #include "basic_4dimage.h"
 
+#include <cstring>
 #include <iostream>
 
 typedef unsigned short int USHORTINT16;
@@ -25,56 +26,11 @@ void Image4DSimple::loadImage(const char* filename, bool b_useMyLib)
     const char * curFileSuffix = getSuffix(imgSrcFile);
     //printf("The current input file has the suffix [%s]\n", curFileSuffix);
 
-    if (curFileSuffix && (strcasecmp(curFileSuffix, "tif")==0 || strcasecmp(curFileSuffix, "tiff")==0 ||
-        strcasecmp(curFileSuffix, "lsm")==0) ) //read tiff/lsm stacks
-	{
-            //printf("Image4DSimple::loadImage loading filename=[%s]\n", filename);
-
-#if defined _WIN32
-
-
-#else
-		if (b_useMyLib)
-		{
-			std::cerr<<"Now try to use MYLIB to read the TIFF/LSM again...\n",0);
-			if (loadTif2StackMylib(imgSrcFile, data1d, tmp_sz, tmp_datatype, pixelnbits))
-			{
-				std::cerr<<"Error happens in TIF/LSM file reading (using MYLIB). Stop. \n", false);
-				b_error=1;
-				return;
-			}
-			else
-				b_error=0; //when succeed then reset b_error
-		}
-		else
-		{
-            //std::cerr<<"Now try to use LIBTIFF (slightly revised by PHC) to read the TIFF/LSM...\n",0);
-            if (strcasecmp(curFileSuffix, "tif")==0 || strcasecmp(curFileSuffix, "tiff")==0)
-			{
-				if (loadTif2Stack(imgSrcFile, data1d, tmp_sz, tmp_datatype))
-				{
-					std::cerr<<"Error happens in TIF file reading (using libtiff). \n", false);
-					b_error=1;
-				}
-			}
-            else //if ( strcasecmp(curFileSuffix, "lsm")==0 ) //read lsm stacks
-			{
-				if (loadLsm2Stack(imgSrcFile, data1d, tmp_sz, tmp_datatype))
-				{
-					std::cerr<<"Error happens in LSM file reading (using libtiff, slightly revised by PHC). \n", false);
-					b_error=1;
-				}
-			}
-		}
-               // printf("Image4DSimple::loadImage finished\n");
-
-#endif
-
-	}    
 
 
 
-    else if ( curFileSuffix && strcasecmp(curFileSuffix, "mrc")==0 ) //read mrc stacks
+
+    if ( curFileSuffix && strcasecmp(curFileSuffix, "mrc")==0 ) //read mrc stacks
 	{
 		if (loadMRC2Stack(imgSrcFile, data1d, tmp_sz, tmp_datatype))
 		{
@@ -169,51 +125,6 @@ void Image4DSimple::loadImage_slice(char filename[], bool b_useMyLib, V3DLONG zs
     const char * curFileSuffix = getSuffix(imgSrcFile);
     printf("The current input file has the suffix [%s]\n", curFileSuffix);
 
-    if (curFileSuffix && (strcasecmp(curFileSuffix, "tif")==0 || strcasecmp(curFileSuffix, "tiff")==0 ||
-        strcasecmp(curFileSuffix, "lsm")==0) ) //read tiff/lsm stacks
-    {
-           // printf("Image4DSimple::loadImage loading filename=[%s] slice =[%ld]\n", filename, zsliceno);
-
-#if defined _WIN32
-
-
-#else
-        if (b_useMyLib)
-        {
-            if (loadTif2StackMylib_slice(imgSrcFile, data1d, tmp_sz, tmp_datatype, pixelnbits, zsliceno))
-            {
-                std::cerr<<"Error happens in TIF/LSM file reading (using MYLIB). Stop. \n", false);
-                b_error=1;
-                return;
-            }
-            else
-                b_error=0; //when succeed then reset b_error
-        }
-        else
-        {
-            //std::cerr<<"Now try to use LIBTIFF (slightly revised by PHC) to read the TIFF/LSM...\n",0);
-            if (strcasecmp(curFileSuffix, "tif")==0 || strcasecmp(curFileSuffix, "tiff")==0)
-            {
-                if (loadTifSlice(imgSrcFile, data1d, tmp_sz, tmp_datatype, zsliceno, false))
-                {
-                    std::cerr<<"Error happens in TIF file reading (using libtiff). \n", false);
-                    b_error=1;
-                }
-            }
-            else //if ( strcasecmp(curFileSuffix, "lsm")==0 ) //read lsm stacks
-            {
-                if (loadLsmSlice(imgSrcFile, data1d, tmp_sz, tmp_datatype, zsliceno, false))
-                {
-                    std::cerr<<"Error happens in LSM file reading (using libtiff, slightly revised by PHC). \n", false);
-                    b_error=1;
-                }
-            }
-        }
-               // printf("Image4DSimple::loadImage finished\n");
-
-#endif
-
-    }
 
    /*
     else if ( curFileSuffix && strcasecmp(curFileSuffix, "mrc")==0 ) //read mrc stacks
@@ -265,7 +176,7 @@ void Image4DSimple::loadImage_slice(char filename[], bool b_useMyLib, V3DLONG zs
     */
 
     //Temporarily do nothing to read other single slice from other formats
-    else
+
     {
         std::cerr<<"The single slice reading function is NOT available for other format at this moment.\n";
         b_error=1;

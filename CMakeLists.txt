@@ -22,4 +22,7 @@ add_executable(V3drawImageSampling
         stackutil.cpp
         stackutil.h
         v3d_basicdatatype.h
+        ImageLoaderBasic.h
+        ImageLoaderBasic.cpp
+        basic_4dimage_create.cpp
 )
